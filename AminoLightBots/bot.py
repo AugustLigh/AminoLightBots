@@ -52,6 +52,7 @@ class Bot(Client):
 
         self.next_step_backend = MemoryHandlerBackend()
         self.reply_backend = MemoryHandlerBackend()
+        self.sub_client: SubClient = None
 
         self.com_handler: dict[str, set] = {}
         self.custom_filters = {}
@@ -68,6 +69,7 @@ class Bot(Client):
     def _login(self, email: str, password: str):
         while True:
             super().login(email, password)
+            self.sub_client = SubClient(comId=None, profile=self.profile)
             sleep(82800)
 
     def clear_step_handler_by_chat_id(self, chat_id: str) -> None:
@@ -246,16 +248,9 @@ class Bot(Client):
                 bot.send_message(message.chatId, 'Did someone call for help?')
 
             # Handle all sent documents of type 'text/plain'.
-            @bot.message_handler(func=lambda message: True,
-                content_types=['audio'])
+            @bot.message_handler(func=lambda message: True)
             def command_handle_audio(message):
                 bot.send_message(message.chatId, 'Audio received, sir!')
-
-            # Handle all other messages.
-            @bot.message_handler(func=lambda message: True, content_types=['audio', 'photo', 'video',
-                'text', 'sticker'])
-            def default_command(message):
-                bot.send_message(message.chatId, "This is the default command handler.")
 
         :param commands: Optional list of strings (commands to handle).
         :type commands: :obj:`list` of :obj:`str`
@@ -465,13 +460,12 @@ class Bot(Client):
             if chatId in chat_list:
                 return key
 
-
     def send_message(self, chatId: str, message: str = None, messageType: int = 0, file: BinaryIO = None, fileType: str = None, replyTo: str = None, mentionUserIds: list = None, stickerId: str = None, embedId: str = None, embedType: int = None, embedLink: str = None, embedTitle: str = None, embedContent: str = None, embedImage: BinaryIO = None):
         comId = self.get_com_id_from_chat_id(chatId)
         if not chatId:
-            send_func = super().send_message 
+            send_func = super().send_message
         else:
-            sub_client = SubClient(comId=comId, profile=self.profile)
-            send_func = sub_client.send_message
+            self.sub_client.comId = comId
+            send_func = self.sub_client.send_message
         
         send_func(chatId, message, messageType, file, fileType, replyTo, mentionUserIds, stickerId, embedId, embedType, embedLink, embedTitle, embedContent, embedImage)
