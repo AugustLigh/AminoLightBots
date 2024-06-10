@@ -1,6 +1,6 @@
 from abc import ABC
 from typing import Optional, Union
-from AminoLightBots import types
+from AminoLightPy.lib.util import objects
 
 class SimpleCustomFilter(ABC):
     """
@@ -63,7 +63,7 @@ class AdvancedCustomFilter(ABC):
 
 class TextFilter:
     """
-    Advanced text filter to check types.Message
+    Advanced text filter to check objects.Message
 
     example of usage is in examples/custom_filters/advanced_text_filter.py
 
@@ -135,12 +135,12 @@ class TextFilter:
             iterable = [i for i in iterable if isinstance(i, str)]
         return iterable
 
-    def check(self, obj: types.Message):
+    def check(self, obj: objects.Message):
         """
         :meta private:
         """
 
-        if isinstance(obj, types.Message):
+        if isinstance(obj, objects.Message):
             text = obj.content
         else:
             return False
