@@ -4,12 +4,12 @@ import sys
 import logging
 
 from time import sleep
-from typing import BinaryIO
 from threading import Thread
 from AminoLightBots import util
 from AminoLightPy.lib.util import objects
 from AminoLightPy import Client, SubClient
 from typing import Callable, Optional, List
+from AminoLightBots.typing import CustomMessage
 from AminoLightPy.lib.util.objects import Event
 
 from AminoLightBots.handler_backends import MemoryHandlerBackend, ContinueHandling
@@ -54,7 +54,6 @@ class Bot(Client):
         self.reply_backend = MemoryHandlerBackend()
         self.sub_client: SubClient = None
 
-        self.com_handler: dict[str, set] = {}
         self.custom_filters = {}
         self.prefix = "!"
 
@@ -445,27 +444,9 @@ class Bot(Client):
             if self.profile.userId == event.message.author.userId:
                 return
         
-        if event.comId not in self.com_handler:
-            self.com_handler[event.comId] = {event.message.chatId}
-        else:
-            self.com_handler[event.comId].add(event.message.chatId)
-        self.process_new_message(event.message)
+        sub_client = SubClient(comId=event.comId, profile=self.profile)
+        custom_message = CustomMessage(event.message.json, sub_client)
+        self.process_new_message(custom_message)
 
     def start_text_message(self):
         self.event("on_text_message")(self.process_new_updates)
-
-    def get_com_id_from_chat_id(self, chatId: str):
-        for key in self.com_handler.keys():
-            chat_list = self.com_handler[key]
-            if chatId in chat_list:
-                return key
-
-    def send_message(self, chatId: str, message: str = None, messageType: int = 0, file: BinaryIO = None, fileType: str = None, replyTo: str = None, mentionUserIds: list = None, stickerId: str = None, embedId: str = None, embedType: int = None, embedLink: str = None, embedTitle: str = None, embedContent: str = None, embedImage: BinaryIO = None):
-        comId = self.get_com_id_from_chat_id(chatId)
-        if not chatId:
-            send_func = super().send_message
-        else:
-            self.sub_client.comId = comId
-            send_func = self.sub_client.send_message
-        
-        send_func(chatId, message, messageType, file, fileType, replyTo, mentionUserIds, stickerId, embedId, embedType, embedLink, embedTitle, embedContent, embedImage)
