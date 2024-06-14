@@ -11,6 +11,7 @@ from AminoLightPy import Client, SubClient
 from typing import Callable, Optional, List
 from AminoLightBots.typing import CustomMessage
 from AminoLightPy.lib.util.objects import Event
+from AminoLightPy.managers import Typing, Recording
 
 from AminoLightBots.handler_backends import MemoryHandlerBackend, ContinueHandling
 from AminoLightBots.custom_filters import SimpleCustomFilter, AdvancedCustomFilter
@@ -52,8 +53,8 @@ class Bot(Client):
 
         self.next_step_backend = MemoryHandlerBackend()
         self.reply_backend = MemoryHandlerBackend()
-        self.sub_client: SubClient = None
-
+        self.user_backend = MemoryHandlerBackend()
+        self.sub_client_dict: dict[str, SubClient] = {}
         self.custom_filters = {}
         self.prefix = "!"
 
@@ -61,14 +62,13 @@ class Bot(Client):
         self.ignore_myself = ignore_myself
         self.threaded = threaded
         if self.threaded:
-            self.worker_pool = util.ThreadPool(self, num_threads=num_threads)
+            self.worker_pool = util.ThreadPool(num_threads=num_threads)
 
         self.start_text_message()
 
     def _login(self, email: str, password: str):
         while True:
             super().login(email, password)
-            self.sub_client = SubClient(comId=None, profile=self.profile)
             sleep(82800)
 
     def clear_step_handler_by_chat_id(self, chat_id: str) -> None:
@@ -147,6 +147,27 @@ class Bot(Client):
         chat_id = message.chatId
         self.register_next_step_handler_by_chat_id(chat_id, callback, *args, **kwargs)
 
+    def register_for_user(self, message: objects.Message, callback: Callable, *args, **kwargs) -> None:
+        """
+        Registers a callback function that will be notified when a new message arrives from the user..
+
+        Warning: In case `callback` as lambda function, saving next step handlers will not work.
+
+        :param message: The message for which we want to handle new message in the same chat.
+        :type message: :class:`AminoLightPy.lib.util.objects.Message`
+
+        :param callback: The callback function which next new message arrives.
+        :type callback: :obj:`Callable[[AminoLightPy.lib.util.objects.Message], None]`
+
+        :param args: Args to pass in callback func
+
+        :param kwargs: Args to pass in callback func
+
+        :return: None
+        """
+        chat_id = message.author.userId
+        self.register_for_user_id(chat_id, callback, *args, **kwargs)
+
     def register_for_reply_by_message_id(
             self, message_id: str, callback: Callable, *args, **kwargs) -> None:
         """
@@ -190,6 +211,22 @@ class Bot(Client):
         """
         self.next_step_backend.register_handler(chat_id, Handler(callback, *args, **kwargs))
 
+    def register_for_user_id(
+            self, user_id: str, callback: Callable, *args, **kwargs) -> None:
+        """
+        Warning: In case `callback` as lambda function, saving reply handlers will not work.
+
+        :param callback: The callback function which next new message arrives.
+        :type callback: :obj:`Callable[[AminoLightPy.lib.util.objects.Message], None]`
+
+        :param args: Args to pass in callback func
+        
+        :param kwargs: Args to pass in callback func
+
+        :return: None
+        """
+        self.user_backend.register_handler(user_id, Handler(callback, *args, **kwargs))
+
     @staticmethod
     def check_commands_input(commands, method_name):
         """
@@ -227,7 +264,6 @@ class Bot(Client):
             commands: Optional[List[str]]=None,
             regexp: Optional[str]=None,
             func: Optional[Callable]=None,
-            content_types: Optional[List[str]]=None,
             **kwargs):
         """
         Handles New incoming message of any kind - text, photo, sticker, etc.
@@ -261,15 +297,10 @@ class Bot(Client):
             It must return True if the command should handle the message.
         :type func: :obj:`lambda`
 
-        :param content_types: Supported message content types. Must be a list. Defaults to ['text'].
-        :type content_types: :obj:`list` of :obj:`str`
-
         :param kwargs: Optional keyword arguments(custom filters)
 
         :return: decorated function
         """
-        if content_types is None:
-            content_types = ["text"]
 
         method_name = "message_handler"
 
@@ -281,13 +312,9 @@ class Bot(Client):
         if regexp is not None:
             self.check_regexp_input(regexp, method_name)
 
-        if isinstance(content_types, str):
-            logger.warning("message_handler: 'content_types' filter should be List of strings (content types), not string.")
-            content_types = [content_types]
 
         def decorator(handler):
             handler_dict = self._build_handler_dict(handler,
-                                                    content_types=content_types,
                                                     commands=commands,
                                                     regexp=regexp,
                                                     func=func,
@@ -349,7 +376,7 @@ class Bot(Client):
         elif message_filter == 'regexp':
             return  re.search(filter_value, message.content, re.IGNORECASE)
         elif message_filter == 'commands':
-            return  util.extract_command(self.prefix, message.content) in filter_value
+            return  util.extract_command(self.prefix, message.content.lower()) in filter_value
         elif message_filter == 'func':
             return filter_value(message)
         elif self.custom_filters and message_filter in self.custom_filters:
@@ -444,9 +471,25 @@ class Bot(Client):
             if self.profile.userId == event.message.author.userId:
                 return
         
-        sub_client = SubClient(comId=event.comId, profile=self.profile)
+        if event.comId not in self.sub_client_dict:
+            if event.comId:
+                sub_client = SubClient(comId=event.comId, profile=self.profile)
+            else:
+                sub_client = self
+
+            self.sub_client_dict[event.comId] = sub_client
+        
+        else:
+            sub_client = self.sub_client_dict[event.comId]
+        
         custom_message = CustomMessage(event.message.json, sub_client)
         self.process_new_message(custom_message)
 
     def start_text_message(self):
         self.event("on_text_message")(self.process_new_updates)
+
+    def typing(self, message: CustomMessage) -> Typing:
+        return super().typing(message.chatId, message.sub_client.comId)
+
+    def recording(self, message: CustomMessage) -> Recording:
+        return super().recording(message.chatId, message.sub_client.comId)
