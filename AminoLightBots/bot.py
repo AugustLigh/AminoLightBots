@@ -145,7 +145,7 @@ class Bot(Client):
         chat_id = message.chatId
         self.register_next_step_handler_by_chat_id(chat_id, callback, *args, **kwargs)
 
-    def register_for_user(self, message: objects.Message, callback: Callable, *args, **kwargs) -> None:
+    def register_next_step_for_user(self, message: objects.Message, callback: Callable, *args, **kwargs) -> None:
         """
         Registers a callback function that will be notified when a new message arrives from the user..
 
@@ -513,8 +513,8 @@ class Bot(Client):
                     if custom_message.messageId in old_messages:
                         continue
 
-                    if len(old_messages) >= 50:
-                        old_messages.pop(0)
+                    if len(old_messages) >= 100:
+                        del old_messages[0]
 
                     old_messages.append(custom_message.messageId)
 
