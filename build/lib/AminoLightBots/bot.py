@@ -64,6 +64,8 @@ class Bot(Client):
         if self.threaded:
             self.worker_pool = util.ThreadPool(num_threads=num_threads)
 
+        self.start_text_message()
+
     def _login(self, email: str, password: str):
         while True:
             super().login(email, password)
@@ -464,12 +466,6 @@ class Bot(Client):
             except Exception as e:
                 raise e
 
-    def typing(self, message: CustomMessage) -> Typing:
-        return super().typing(message.chatId, message.sub_client.comId)
-
-    def recording(self, message: CustomMessage) -> Recording:
-        return super().recording(message.chatId, message.sub_client.comId)
-
     def process_new_updates(self, event: Event):
         if self.ignore_myself:
             if self.profile.userId == event.message.author.userId:
@@ -489,40 +485,11 @@ class Bot(Client):
         custom_message = CustomMessage(event.message.json, sub_client)
         self.process_new_message(custom_message)
 
-    def start_websocket_handling(self):
+    def start_text_message(self):
         self.event("on_text_message")(self.process_new_updates)
 
-    def start_long_poling_handling(self, chatLink):
-        link_data = self.get_from_code(code=chatLink)
-        comId = link_data.comId
-        chatId = link_data.objectId
-        sub_client = SubClient(comId=comId, profile=self.profile)
+    def typing(self, message: CustomMessage) -> Typing:
+        return super().typing(message.chatId, message.sub_client.comId)
 
-        existing_messages = sub_client.get_chat_messages(chatId=chatId, size=50)
-        old_messages: list[str] = list(existing_messages.messageId)
-
-        while True:
-            sleep(2)
-            try:
-                message_list = sub_client.get_chat_messages(chatId=chatId, size=10)
-            except Exception as e:
-                print(e)
-            else:
-                for data in message_list.json[::-1]:
-                    custom_message = CustomMessage(data, sub_client)
-                    if custom_message.messageId in old_messages:
-                        continue
-
-                    if len(old_messages) >= 50:
-                        old_messages.pop(0)
-
-                    old_messages.append(custom_message.messageId)
-
-                    if self.ignore_myself:
-                        if self.profile.userId == custom_message.author.userId:
-                            continue
-                    
-                    if not custom_message.content:
-                        continue
-
-                    self.process_new_message(custom_message)
+    def recording(self, message: CustomMessage) -> Recording:
+        return super().recording(message.chatId, message.sub_client.comId)
