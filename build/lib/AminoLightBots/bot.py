@@ -64,8 +64,6 @@ class Bot(Client):
         if self.threaded:
             self.worker_pool = util.ThreadPool(num_threads=num_threads)
 
-        self.start_text_message()
-
     def _login(self, email: str, password: str):
         while True:
             super().login(email, password)
@@ -147,7 +145,7 @@ class Bot(Client):
         chat_id = message.chatId
         self.register_next_step_handler_by_chat_id(chat_id, callback, *args, **kwargs)
 
-    def register_for_user(self, message: objects.Message, callback: Callable, *args, **kwargs) -> None:
+    def register_next_step_for_user(self, message: objects.Message, callback: Callable, *args, **kwargs) -> None:
         """
         Registers a callback function that will be notified when a new message arrives from the user..
 
@@ -466,6 +464,12 @@ class Bot(Client):
             except Exception as e:
                 raise e
 
+    def typing(self, message: CustomMessage) -> Typing:
+        return super().typing(message.chatId, message.sub_client.comId)
+
+    def recording(self, message: CustomMessage) -> Recording:
+        return super().recording(message.chatId, message.sub_client.comId)
+
     def process_new_updates(self, event: Event):
         if self.ignore_myself:
             if self.profile.userId == event.message.author.userId:
@@ -485,11 +489,40 @@ class Bot(Client):
         custom_message = CustomMessage(event.message.json, sub_client)
         self.process_new_message(custom_message)
 
-    def start_text_message(self):
+    def start_websocket_handling(self):
         self.event("on_text_message")(self.process_new_updates)
 
-    def typing(self, message: CustomMessage) -> Typing:
-        return super().typing(message.chatId, message.sub_client.comId)
+    def start_long_poling_handling(self, chatLink):
+        link_data = self.get_from_code(code=chatLink)
+        comId = link_data.comId
+        chatId = link_data.objectId
+        sub_client = SubClient(comId=comId, profile=self.profile)
 
-    def recording(self, message: CustomMessage) -> Recording:
-        return super().recording(message.chatId, message.sub_client.comId)
+        existing_messages = sub_client.get_chat_messages(chatId=chatId, size=50)
+        old_messages: list[str] = list(existing_messages.messageId)
+
+        while True:
+            sleep(2)
+            try:
+                message_list = sub_client.get_chat_messages(chatId=chatId, size=10)
+            except Exception as e:
+                print(e)
+            else:
+                for data in message_list.json[::-1]:
+                    custom_message = CustomMessage(data, sub_client)
+                    if custom_message.messageId in old_messages:
+                        continue
+
+                    if len(old_messages) >= 100:
+                        del old_messages[0]
+
+                    old_messages.append(custom_message.messageId)
+
+                    if self.ignore_myself:
+                        if self.profile.userId == custom_message.author.userId:
+                            continue
+                    
+                    if not custom_message.content:
+                        continue
+
+                    self.process_new_message(custom_message)

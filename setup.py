@@ -25,7 +25,7 @@ keywords = [
 
 setup(
     name="amino.light.bots",
-    version="0.0.3",
+    version="0.0.4",
     url="https://github.com/AugustLigh/AminoLightBots",
     license="MIT",
     description="Best library for amino bots",

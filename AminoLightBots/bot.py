@@ -492,37 +492,55 @@ class Bot(Client):
     def start_websocket_handling(self):
         self.event("on_text_message")(self.process_new_updates)
 
-    def start_long_poling_handling(self, chatLink):
-        link_data = self.get_from_code(code=chatLink)
-        comId = link_data.comId
-        chatId = link_data.objectId
-        sub_client = SubClient(comId=comId, profile=self.profile)
+    def initialize_chats(self, chatLinks):
+        chat_data = {}
+        for chatLink in chatLinks:
+            link_data = self.get_from_code(code=chatLink)
+            comId = link_data.comId
+            chatId = link_data.objectId
+            chat_data[chatLink] = {
+                'comId': comId,
+                'chatId': chatId,
+                'sub_client': SubClient(comId=comId, profile=self.profile),
+                'old_messages': set()
+            }
+        return chat_data
 
-        existing_messages = sub_client.get_chat_messages(chatId=chatId, size=50)
-        old_messages: list[str] = list(existing_messages.messageId)
+    def handle_chat(self, chat_info):
+        sub_client = chat_info['sub_client']
+        chatId = chat_info['chatId']
+        old_messages = chat_info['old_messages']
 
+        if not old_messages:
+            existing_messages = sub_client.get_chat_messages(chatId=chatId, size=50)
+            old_messages.update(existing_messages.messageId)
+
+        try:
+            message_list = sub_client.get_chat_messages(chatId=chatId, size=10)
+            new_messages = [CustomMessage(data, sub_client) for data in message_list.json[::-1]]
+
+            for custom_message in new_messages:
+                if custom_message.messageId in old_messages:
+                    continue
+
+                old_messages.add(custom_message.messageId)
+
+                if len(old_messages) > 100:
+                    old_messages.pop()
+
+                if self.ignore_myself and self.profile.userId == custom_message.author.userId:
+                    continue
+
+                if not custom_message.content:
+                    continue
+
+                self.process_new_message(custom_message)
+        except Exception as e:
+            print(f"Error handling chat {chat_info['chatId']}: {e}")
+
+    def start_long_poling_handling(self, *chatLinks):
+        chat_data = self.initialize_chats(chatLinks)
         while True:
+            for chat_info in chat_data.values():
+                self.handle_chat(chat_info)
             sleep(2)
-            try:
-                message_list = sub_client.get_chat_messages(chatId=chatId, size=10)
-            except Exception as e:
-                print(e)
-            else:
-                for data in message_list.json[::-1]:
-                    custom_message = CustomMessage(data, sub_client)
-                    if custom_message.messageId in old_messages:
-                        continue
-
-                    if len(old_messages) >= 100:
-                        del old_messages[0]
-
-                    old_messages.append(custom_message.messageId)
-
-                    if self.ignore_myself:
-                        if self.profile.userId == custom_message.author.userId:
-                            continue
-                    
-                    if not custom_message.content:
-                        continue
-
-                    self.process_new_message(custom_message)
