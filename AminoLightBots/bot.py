@@ -499,17 +499,17 @@ class Bot(Client):
             comId = link_data.comId
             chatId = link_data.objectId
             chat_data[chatLink] = {
-                'comId': comId,
-                'chatId': chatId,
-                'sub_client': SubClient(comId=comId, profile=self.profile),
-                'old_messages': set()
+                "comId": comId,
+                "chatId": chatId,
+                "sub_client": SubClient(comId=comId, profile=self.profile),
+                "old_messages": set()
             }
         return chat_data
 
     def handle_chat(self, chat_info):
-        sub_client = chat_info['sub_client']
-        chatId = chat_info['chatId']
-        old_messages = chat_info['old_messages']
+        sub_client = chat_info["sub_client"]
+        chatId = chat_info["chatId"]
+        old_messages = chat_info["old_messages"]
 
         if not old_messages:
             existing_messages = sub_client.get_chat_messages(chatId=chatId, size=50)
