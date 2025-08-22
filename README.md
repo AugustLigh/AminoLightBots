@@ -1,30 +1,3 @@
-Metadata-Version: 2.4
-Name: amino.light.bots
-Version: 0.0.8
-Summary: Best library for amino bots
-Home-page: https://github.com/AugustLigh/AminoLightBots
-Author: AugustLight
-License: MIT
-Keywords: amino,aminoapps,amino.fix,amino.light,amino.ligt.py,AminoLightPy,amino-bot,narvii,medialab,api,python,python3,python3.x,minori,august,augustlight,aminolightpy,amino.pyamino.light.botsaminolightbots
-Classifier: Intended Audience :: Developers
-Classifier: License :: OSI Approved :: MIT License
-Classifier: Programming Language :: Python :: 3.9
-Classifier: Programming Language :: Python :: 3.10
-Classifier: Programming Language :: Python :: 3.11
-Classifier: Programming Language :: Python :: 3.12
-Classifier: Programming Language :: Python :: 3.13
-Description-Content-Type: text/markdown
-Requires-Dist: amino.light.py
-Dynamic: author
-Dynamic: classifier
-Dynamic: description
-Dynamic: description-content-type
-Dynamic: home-page
-Dynamic: keywords
-Dynamic: license
-Dynamic: requires-dist
-Dynamic: summary
-
 <div align="center">
   <h1>🤖 aminolightbots</h1>
   <p><i>powerful and convenient framework for creating bots in amino</i></p>
@@ -60,13 +33,13 @@ Dynamic: summary
 ### installation
 
 ```bash
-pip install aminolightbots
+pip install amino.light.bots
 ```
 
 ### simple example
 
 ```python
-from aminolightbots import bot
+from AminoLightBots import bot
 
 bot = bot(email="your_email", password="your_password")
 
@@ -150,9 +123,9 @@ this project is licensed under the mit license. see the [license](license) file 
 
 ## 🔗 useful links
 
-- [documentation](https://aminolightbots.readthedocs.io/)
-- [github repository](https://github.com/augustligh/aminolightbots)
-- [pypi package](https://pypi.org/project/aminolightbots/)
+<!-- - [documentation](https://aminolightbots.readthedocs.io/) -->
+- [github repository](https://github.com/augustligh/AminoLightBots)
+- [pypi package](https://pypi.org/project/amino.light.bots)
 - [support telegram](https://t.me/aminolightpy)
 
 ---

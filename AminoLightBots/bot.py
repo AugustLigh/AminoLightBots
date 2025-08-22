@@ -1,16 +1,18 @@
-
 import re
 import sys
 import logging
 
 from time import sleep
 from threading import Thread
+
 from AminoLightBots import util
 from AminoLightPy.lib.util import objects
 from AminoLightPy import Client, SubClient
+
 from typing import Callable, Optional, List
-from AminoLightBots.typing import CustomMessage
-from AminoLightPy.lib.util.objects import Event
+
+from AminoLightBots.util import ContentType
+from AminoLightBots.typing import CustomMessage, CustomEvent
 from AminoLightPy.managers import Typing, Recording
 
 from AminoLightBots.handler_backends import MemoryHandlerBackend, ContinueHandling
@@ -63,10 +65,17 @@ class Bot(Client):
         self.threaded = threaded
         if self.threaded:
             self.worker_pool = util.ThreadPool(num_threads=num_threads)
+        
+        self.startup_handler = None
+        self._first_login = True
 
     def _login(self, email: str, password: str):
         while True:
             super().login(email, password)
+            if self._first_login:
+                self._first_login = False
+                if self.startup_handler:
+                    self._exec_task(self.startup_handler)
             sleep(82800)
 
     def clear_step_handler_by_chat_id(self, chat_id: str) -> None:
@@ -262,6 +271,7 @@ class Bot(Client):
             commands: Optional[List[str]]=None,
             regexp: Optional[str]=None,
             func: Optional[Callable]=None,
+            content_types: Optional[List[str]]=None,
             **kwargs):
         """
         Handles New incoming message of any kind - text, photo, sticker, etc.
@@ -285,6 +295,10 @@ class Bot(Client):
             def command_handle_audio(message):
                 bot.send_message(message.chatId, 'Audio received, sir!')
 
+            # Handle all other messages.
+            @bot.message_handler(func=lambda message: True, content_types=['photo', 'voice', 'video',
+                'text', 'sticker'])
+
         :param commands: Optional list of strings (commands to handle).
         :type commands: :obj:`list` of :obj:`str`
 
@@ -299,6 +313,8 @@ class Bot(Client):
 
         :return: decorated function
         """
+        if content_types is None:
+            content_types = ["text"]
 
         method_name = "message_handler"
 
@@ -310,9 +326,13 @@ class Bot(Client):
         if regexp is not None:
             self.check_regexp_input(regexp, method_name)
 
+        if isinstance(content_types, str):
+            logger.warning("message_handler: 'content_types' filter should be List of strings (content types), not string.")
+            content_types = [content_types]
 
         def decorator(handler):
             handler_dict = self._build_handler_dict(handler,
+                                                    content_types=content_types,
                                                     commands=commands,
                                                     regexp=regexp,
                                                     func=func,
@@ -370,7 +390,7 @@ class Bot(Client):
         """
 
         if message_filter == 'content_types':
-            return True
+            return message.content_type in filter_value
         elif message_filter == 'regexp':
             return  re.search(filter_value, message.content, re.IGNORECASE)
         elif message_filter == 'commands':
@@ -470,7 +490,7 @@ class Bot(Client):
     def recording(self, message: CustomMessage) -> Recording:
         return super().recording(message.chatId, message.sub_client.comId)
 
-    def process_new_updates(self, event: Event):
+    def process_new_updates(self, event: CustomEvent):
         if self.ignore_myself:
             if self.profile.userId == event.message.author.userId:
                 return
@@ -486,11 +506,23 @@ class Bot(Client):
         else:
             sub_client = self.sub_client_dict[event.comId]
         
-        custom_message = CustomMessage(event.message.json, sub_client)
+        custom_message = CustomMessage(event.message.json, sub_client, event.content_type)
         self.process_new_message(custom_message)
 
     def start_websocket_handling(self):
-        self.event("on_text_message")(self.process_new_updates)
+        self.event("on_text_message")(lambda x: self.process_new_updates(CustomEvent(x, ContentType.TEXT)))
+        self.event("on_image_message")(lambda x: self.process_new_updates(CustomEvent(x, ContentType.IMAGE)))
+        self.event("on_voice_message")(lambda x: self.process_new_updates(CustomEvent(x, ContentType.VOICE)))
+        self.event("on_sticker_message")(lambda x: self.process_new_updates(CustomEvent(x, ContentType.STICKER)))
+        self.event("on_delete_message")(lambda x: self.process_new_updates(CustomEvent(x, ContentType.DELETE)))
+        self.event("on_group_member_join")(lambda x: self.process_new_updates(CustomEvent(x, ContentType.MEMBER_JOIN)))
+        self.event("on_group_member_leave")(lambda x: self.process_new_updates(CustomEvent(x, ContentType.MEMBER_LEAVE)))
+        self.event("on_voice_chat_start")(lambda x: self.process_new_updates(CustomEvent(x, ContentType.START_VOICE_CHAT)))
+        self.event("on_voice_chat_end")(lambda x: self.process_new_updates(CustomEvent(x, ContentType.END_VOICE_CHAT)))
+        self.event("on_video_chat_start")(lambda x: self.process_new_updates(CustomEvent(x, ContentType.START_VIDEO_CHAT)))
+        self.event("on_video_chat_end")(lambda x: self.process_new_updates(CustomEvent(x, ContentType.END_VIDEO_CHAT)))
+        self.event("on_screen_room_start")(lambda x: self.process_new_updates(CustomEvent(x, ContentType.START_SCREEN_ROOM)))
+        self.event("on_screen_room_end")(lambda x: self.process_new_updates(CustomEvent(x, ContentType.END_SCREEN_ROOM)))
 
     def initialize_chats(self, chatLinks):
         chat_data = {}
@@ -517,7 +549,7 @@ class Bot(Client):
 
         try:
             message_list = sub_client.get_chat_messages(chatId=chatId, size=10)
-            new_messages = [CustomMessage(data, sub_client) for data in message_list.json[::-1]]
+            new_messages = [CustomMessage(data, sub_client, ContentType.TEXT) for data in message_list.json[::-1]]
 
             for custom_message in new_messages:
                 if custom_message.messageId in old_messages:
@@ -544,3 +576,22 @@ class Bot(Client):
             for chat_info in chat_data.values():
                 self.handle_chat(chat_info)
             sleep(2)
+
+    def on_startup(self, callback: Callable = None) -> Callable:
+        """
+        Registers a callback function to be notified when the bot successfully logs in for the first time.
+        Can be used as a decorator or a regular method call.
+        
+        :param callback: The callback function to be called on startup
+        :type callback: :obj:`Callable`
+        :return: None if called as method, decorator function if called without arguments
+        """
+        def decorator(handler):
+            self.startup_handler = handler
+            return handler
+        
+        if callback:
+            self.startup_handler = callback
+            return callback
+        else:
+            return decorator

@@ -3,9 +3,24 @@ import logging
 import traceback
 import threading
 import queue as Queue
-from typing import Union
+from enum import Enum
 
 logger = logging.getLogger('AminoBot')
+
+class ContentType(Enum):
+    TEXT = "text"
+    IMAGE = "image"
+    VOICE = "voice"
+    STICKER = "sticker"
+    DELETE = "delete"
+    MEMBER_JOIN = "member_join"
+    MEMBER_LEAVE = "member_leave"
+    START_VOICE_CHAT = "start_voice_chat"
+    END_VOICE_CHAT = "end_voice_chat"
+    START_VIDEO_CHAT = "start_video_chat"
+    END_VIDEO_CHAT = "end_video_chat"
+    START_SCREEN_ROOM = "start_screen_room"
+    END_SCREEN_ROOM = "end_screen_room"
 
 class WorkerThread(threading.Thread):
     """
@@ -122,7 +137,7 @@ def is_command(prefix: str, text: str) -> bool:
     if text is None: return False
     return text.startswith(prefix)
 
-def extract_command(prefix: str, text: str) -> Union[str, None]:
+def extract_command(prefix: str, text: str) -> str | None:
     """
     Extracts the command from `text` (minus the '/') if `text` is a command (see is_command).
     If `text` is not a command, this function returns None.

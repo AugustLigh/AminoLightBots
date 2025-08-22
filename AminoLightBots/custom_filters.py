@@ -1,6 +1,6 @@
 from abc import ABC
 from typing import Optional, Union
-from AminoLightPy.lib.util import objects
+from AminoLightPy.lib.util.objects import Message
 
 class SimpleCustomFilter(ABC):
     """
@@ -135,12 +135,12 @@ class TextFilter:
             iterable = [i for i in iterable if isinstance(i, str)]
         return iterable
 
-    def check(self, obj: objects.Message):
+    def check(self, obj: Message):
         """
         :meta private:
         """
 
-        if isinstance(obj, objects.Message):
+        if isinstance(obj, Message):
             text = obj.content
         else:
             return False
@@ -313,49 +313,26 @@ class IsReplyFilter(SimpleCustomFilter):
 
     key = 'is_reply'
 
-    def check(self, message):
+    def check(self, message: Message):
         """
         :meta private:
         """
 
-        return message.reply_to_message is not None
-
-
-class LanguageFilter(AdvancedCustomFilter):
-    """
-    Check users language_code.
-
-    .. code-block:: python3
-        :caption: Example on using this filter:
-
-        @bot.message_handler(language_code=['ru'])
-        # your function
-    """
-
-    key = 'language_code'
-
-    def check(self, message, text):
-        """
-        :meta private:
-        """
-        if type(text) is list:
-            return message.from_user.language_code in text
-        else:
-            return message.from_user.language_code == text
+        return message.replyMessage is not None
 
 
 class IsAdminFilter(SimpleCustomFilter):
     """
-    Check whether the user is administrator / owner of the chat.
+    Check whether the user is agent / leader or curator in community.
 
     .. code-block:: python3
         :caption: Example on using this filter:
 
-        @bot.message_handler(chat_types=['supergroup'], is_chat_admin=True)
+        @bot.message_handler(command=['ban'], is_admin=True)
         # your function
     """
 
-    key = 'is_chat_admin'
+    key = 'is_admin'
 
     def __init__(self, bot):
         self._bot = bot
@@ -365,5 +342,5 @@ class IsAdminFilter(SimpleCustomFilter):
         :meta private:
         """
 
-        return self._bot.get_chat_member(message.chat.id, message.from_user.id).status in ['creator', 'administrator']
+        return message.author.role in (101, 100, 102)
 
