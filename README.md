@@ -43,6 +43,10 @@ from AminoLightBots import bot
 
 bot = bot(email="your_email", password="your_password")
 
+@bot.on_startup
+def startup_func():
+    print("Bot started!")
+
 @bot.message_handler(commands=['start'])
 def start_command(message):
     message.reply("👋 hi! im bot in aminolightbots")
